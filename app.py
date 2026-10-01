@@ -511,6 +511,7 @@ def empty_calc(on_date,kitchen,zone):
     return {'on_date':on_date,'kitchen':kitchen,'zone':zone,'kitchens':[],'service_groups':SERVICE_GROUPS,
             'group_summary':[{'service_group':g,'meal_qty':0,'sfg_material_cost':0,'direct_expense_cost':0,'total_cost':0,'cost_per_meal':0} for g in SERVICE_GROUPS],
             'fg_cost':[],'materials':[],'total_meals':0,'equivalent_meals':0,'ideal_cost':0,'ideal_cost_per_meal':None,'actual_cost':0,'actual_cost_per_meal':0,'cost_variance':0,
+            'costing_ready':True,'invalid_cost_inputs':[],
             'missing_fg_bom':[],'missing_sfg_bom':[],'missing_rates':[]}
 
 
