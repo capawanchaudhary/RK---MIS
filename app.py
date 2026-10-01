@@ -1,6 +1,7 @@
-import json, os, re, sqlite3
+import hashlib, hmac, json, os, re, sqlite3, time
 from datetime import date, timedelta
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -122,9 +123,64 @@ CREATE INDEX IF NOT EXISTS idx_rates ON material_rates(material_code,kitchen_cod
 
 
 def conn():
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        import psycopg
+        return PostgresConnection(psycopg.connect(
+            database_url,
+            row_factory=hybrid_row,
+            sslmode='require',
+            prepare_threshold=None,
+            connect_timeout=10,
+        ))
     c = sqlite3.connect(DB)
     c.row_factory = sqlite3.Row
     return c
+
+
+class HybridRow(dict):
+    def __init__(self, columns, values):
+        super().__init__(zip(columns, values))
+        self.values_by_position = values
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.values_by_position[key]
+        return super().__getitem__(key)
+
+
+def hybrid_row(cursor):
+    columns=[col.name for col in cursor.description]
+    return lambda values: HybridRow(columns, values)
+
+
+class PostgresConnection:
+    """Small compatibility layer so the existing queries work with PostgreSQL."""
+    def __init__(self, connection):
+        self.raw = connection
+
+    def execute(self, sql, params=()):
+        sql = sql.replace('?', '%s')
+        if sql.lstrip().upper().startswith('INSERT OR IGNORE INTO '):
+            sql = re.sub(r'^\s*INSERT OR IGNORE INTO ', 'INSERT INTO ', sql, flags=re.I)
+            sql += ' ON CONFLICT DO NOTHING'
+        return self.raw.execute(sql, params)
+
+    def executescript(self, script):
+        for statement in script.split(';'):
+            statement = statement.strip()
+            if statement:
+                statement = re.sub(r'\bINTEGER PRIMARY KEY AUTOINCREMENT\b', 'BIGSERIAL PRIMARY KEY', statement, flags=re.I)
+                self.execute(statement)
+
+    def commit(self):
+        self.raw.commit()
+
+    def rollback(self):
+        self.raw.rollback()
+
+    def close(self):
+        self.raw.close()
 
 
 def init_db():
@@ -656,7 +712,21 @@ def master_add(entity,d):
         elif col in ('qty_per_fg','base_qty','component_qty','rate','rate_per_meal'): v=fnum(v)
         elif col in ('valid_from','valid_to'): v=dte(v)
         vals.append(v)
-    c=conn(); ph=','.join('?'*len(cols)); c.execute(f'INSERT OR REPLACE INTO {table}({",".join(cols)}) VALUES({ph})',vals); rid=c.execute('SELECT last_insert_rowid()').fetchone()[0]; c.commit(); c.close(); return rid
+    c=conn(); ph=','.join('?'*len(cols))
+    if isinstance(c,PostgresConnection):
+        keys={'kitchens':['code'],'materials':['code'],'fgs':['code'],'sfgs':['code'],
+              'fg_bom':['fg_code','sfg_code','valid_from'],
+              'fg_material_bom':['fg_code','material_code','valid_from'],
+              'sfg_bom':['sfg_code','material_code','valid_from'],
+              'material_rates':['material_code','kitchen_code','valid_from'],
+              'direct_expense_rates':['expense_name','service_group','valid_from']}[table]
+        updates=','.join(f'{col}=EXCLUDED.{col}' for col in cols)
+        result=c.execute(f'INSERT INTO {table}({",".join(cols)}) VALUES({ph}) ON CONFLICT({",".join(keys)}) DO UPDATE SET {updates} RETURNING id',vals)
+        rid=result.fetchone()['id']
+    else:
+        c.execute(f'INSERT OR REPLACE INTO {table}({",".join(cols)}) VALUES({ph})',vals)
+        rid=c.execute('SELECT last_insert_rowid()').fetchone()[0]
+    c.commit(); c.close(); return rid
 
 
 def master_update(entity,rid,d):
@@ -681,8 +751,8 @@ def master_update(entity,rid,d):
         elif col in ('qty_per_fg','base_qty','component_qty','rate','rate_per_meal'): v=fnum(v)
         elif col in ('valid_from','valid_to'): v=dte(v)
         vals.append(v)
-    c=conn(); c.execute(f'UPDATE {table} SET '+','.join(f'{col}=?' for col in cols)+' WHERE id=?',(*vals,int(rid)))
-    if c.total_changes==0: c.close(); raise ValueError('Record not found')
+    c=conn(); result=c.execute(f'UPDATE {table} SET '+','.join(f'{col}=?' for col in cols)+' WHERE id=?',(*vals,int(rid)))
+    if result.rowcount==0: c.close(); raise ValueError('Record not found')
     c.commit(); c.close()
 
 
@@ -697,15 +767,69 @@ def stats():
         out[t]=c.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
     c.close(); return out
 
+def auth_settings():
+    password=os.environ.get('APP_PASSWORD','')
+    secret=os.environ.get('APP_SECRET','')
+    required=os.environ.get('VERCEL')=='1' or bool(password)
+    configured=bool(password and secret)
+    if not required:
+        return False,True
+    return True,configured
+
+
+def make_session(secret):
+    expires=int(time.time())+8*60*60
+    signature=hmac.new(secret.encode('utf-8'),str(expires).encode('ascii'),hashlib.sha256).hexdigest()
+    return f'{expires}.{signature}'
+
+
+def valid_session(cookie,secret):
+    try:
+        expires,signature=cookie.split('.',1)
+        if int(expires)<int(time.time()): return False
+        expected=hmac.new(secret.encode('utf-8'),expires.encode('ascii'),hashlib.sha256).hexdigest()
+        return hmac.compare_digest(signature,expected)
+    except (ValueError,TypeError):
+        return False
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version='ProductionControlV3'
-    def send_json(self,obj,status=200):
-        b=json.dumps(obj,ensure_ascii=False,default=str).encode('utf-8'); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
+    def send_json(self,obj,status=200,extra_headers=()):
+        b=json.dumps(obj,ensure_ascii=False,default=str).encode('utf-8'); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Content-Length',str(len(b)))
+        for name,value in extra_headers: self.send_header(name,value)
+        self.end_headers(); self.wfile.write(b)
+
+    def session_valid(self):
+        required,configured=auth_settings()
+        if not required: return True
+        if not configured: return False
+        try:
+            jar=SimpleCookie(self.headers.get('Cookie',''))
+            morsel=jar.get('rk_session')
+            return bool(morsel and valid_session(morsel.value,os.environ['APP_SECRET']))
+        except Exception:
+            return False
+
+    def require_access(self):
+        required,configured=auth_settings()
+        if os.environ.get('VERCEL')=='1' and (not configured or not os.environ.get('DATABASE_URL')):
+            self.send_json({'error':'Online setup is incomplete.'},503)
+            return False
+        if not required or (configured and self.session_valid()): return True
+        self.send_json({'error':'Please sign in to continue.'},401)
+        return False
     def send_file(self,path,ctype):
         with open(path,'rb') as f: b=f.read(); self.send_response(200); self.send_header('Content-Type',ctype); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         p=urlparse(self.path); qs=parse_qs(p.query)
         try:
+            if p.path=='/api/session':
+                required,configured=auth_settings()
+                if os.environ.get('VERCEL')=='1' and (not configured or not os.environ.get('DATABASE_URL')):
+                    return self.send_json({'error':'Online setup is incomplete.'},503)
+                return self.send_json({'auth_required':required,'authenticated':not required or self.session_valid()})
+            if p.path.startswith('/api/') and p.path!='/api/health' and not self.require_access(): return
             if p.path=='/': return self.send_file(os.path.join(STATIC,'index.html'),'text/html; charset=utf-8')
             if p.path=='/app.js': return self.send_file(os.path.join(STATIC,'app.js'),'application/javascript; charset=utf-8')
             if p.path=='/styles.css': return self.send_file(os.path.join(STATIC,'styles.css'),'text/css; charset=utf-8')
@@ -722,12 +846,26 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e: return self.send_json({'error':str(e)},500)
     def do_POST(self):
         try:
+            path=urlparse(self.path).path
+            if path.startswith('/api/') and path not in ('/api/login','/api/logout') and not self.require_access(): return
             n=int(self.headers.get('Content-Length','0')); obj=json.loads(self.rfile.read(n).decode('utf-8') or '{}')
-            if self.path=='/api/save_meals': return self.send_json({'ok':True,'rows_saved':save_meals(obj)})
-            if self.path=='/api/save_actuals': return self.send_json({'ok':True,'rows_saved':save_actuals(obj)})
-            if self.path=='/api/master_add': return self.send_json({'ok':True,'id':master_add(obj['entity'],obj.get('data') or {})})
-            if self.path=='/api/master_update': master_update(obj['entity'],obj['id'],obj.get('data') or {}); return self.send_json({'ok':True})
-            if self.path=='/api/master_delete': master_delete(obj['entity'],obj['id']); return self.send_json({'ok':True})
+            if path=='/api/login':
+                required,configured=auth_settings()
+                if not required: return self.send_json({'ok':True})
+                if not configured or (os.environ.get('VERCEL')=='1' and not os.environ.get('DATABASE_URL')):
+                    return self.send_json({'error':'Online setup is incomplete.'},503)
+                if not hmac.compare_digest(str(obj.get('password','')),os.environ['APP_PASSWORD']):
+                    return self.send_json({'error':'Password is incorrect.'},401)
+                token=make_session(os.environ['APP_SECRET'])
+                secure='; Secure' if os.environ.get('VERCEL')=='1' else ''
+                return self.send_json({'ok':True},extra_headers=[('Set-Cookie',f'rk_session={token}; Path=/; Max-Age=28800; HttpOnly; SameSite=Strict{secure}')])
+            if path=='/api/logout':
+                return self.send_json({'ok':True},extra_headers=[('Set-Cookie','rk_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict; Secure')])
+            if path=='/api/save_meals': return self.send_json({'ok':True,'rows_saved':save_meals(obj)})
+            if path=='/api/save_actuals': return self.send_json({'ok':True,'rows_saved':save_actuals(obj)})
+            if path=='/api/master_add': return self.send_json({'ok':True,'id':master_add(obj['entity'],obj.get('data') or {})})
+            if path=='/api/master_update': master_update(obj['entity'],obj['id'],obj.get('data') or {}); return self.send_json({'ok':True})
+            if path=='/api/master_delete': master_delete(obj['entity'],obj['id']); return self.send_json({'ok':True})
             return self.send_json({'error':'Not found'},404)
         except Exception as e: return self.send_json({'error':str(e)},500)
 

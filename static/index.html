@@ -1,12 +1,18 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#123a35"><title>Production Control | RK Group</title><link rel="stylesheet" href="/styles.css"></head>
 <body>
-<header class="topbar">
+<div id="loginGate" class="login-gate">
+  <section class="login-card"><div class="brand-mark">RK</div><h1>Production Control</h1><p>Sign in to open the RK Group operations workspace.</p>
+    <form id="loginForm"><label for="loginPassword">Access password</label><input id="loginPassword" type="password" autocomplete="current-password" required><button type="submit">Sign in</button></form>
+    <div id="loginMessage" class="login-message" role="alert"></div>
+  </section>
+</div>
+<header class="topbar hidden">
   <a class="brand" href="#dashboard" aria-label="RK Group Production Control home"><span class="brand-mark">RK</span><span class="brand-copy"><b>RK GROUP</b><small>FOOD OPERATIONS</small></span></a>
   <div class="topbar-center"><span class="topbar-dot"></span> Production control <span class="topbar-divider">/</span> India operations</div>
-  <div class="topbar-right"><span class="live-pill"><i></i> Planning workspace</span><span class="topbar-date" id="todayLabel">KITCHEN OPERATIONS</span></div>
+  <div class="topbar-right"><span class="live-pill"><i></i> Planning workspace</span><span class="topbar-date" id="todayLabel">KITCHEN OPERATIONS</span><button id="logoutButton" class="logout-button">Sign out</button></div>
 </header>
-<div class="app-shell">
+<div class="app-shell hidden">
   <aside class="sidebar">
     <div class="side-caption">WORKSPACE</div>
     <button class="nav active" data-page="dashboard"><span class="nav-icon">▦</span><span>Overview</span></button>

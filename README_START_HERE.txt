@@ -62,5 +62,11 @@ Running on Windows:
 6. Kitchen user uses Meal Entry and Actual Consumption.
 7. MD uses RK GROUP.
 
-Enterprise next step for ~100 kitchens:
-Move this same business logic to a central PostgreSQL server, add kitchen-wise login/role access, audit trail, centralized backups, and RISE/SAP APIs. The local V3 is the pilot of the business logic.
+Online deployment (Vercel + Supabase):
+- Vercel serves the app and its Python API; Supabase PostgreSQL stores shared online records.
+- Set DATABASE_URL, APP_PASSWORD, and APP_SECRET in Vercel Project Settings → Environment Variables.
+- The online app requires one shared sign-in password. Do not reuse an email password.
+- To copy the local records, run migrate_to_supabase.bat from the same folder as production_control.db and follow its private prompts. The local database is read only during this copy and is not removed.
+- Keep database connection strings and app passwords out of GitHub and chat.
+
+This first online version uses one shared sign-in. Kitchen-specific roles, audit history, and SAP/RISE integration are future improvements for a larger rollout.
