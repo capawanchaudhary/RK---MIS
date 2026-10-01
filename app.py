@@ -1,4 +1,5 @@
 import hashlib, hmac, json, os, re, sqlite3, time
+import traceback
 from datetime import date, timedelta
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
@@ -842,7 +843,9 @@ class Handler(BaseHTTPRequestHandler):
             if p.path=='/api/master': return self.send_json(master_rows(qs.get('entity',[''])[0]))
             if p.path=='/api/stats': return self.send_json(stats())
             return self.send_json({'error':'Not found'},404)
-        except Exception as e: return self.send_json({'error':str(e)},500)
+        except Exception as e:
+            traceback.print_exc()
+            return self.send_json({'error':str(e)},500)
     def do_POST(self):
         try:
             path=urlparse(self.path).path
@@ -866,7 +869,9 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/master_update': master_update(obj['entity'],obj['id'],obj.get('data') or {}); return self.send_json({'ok':True})
             if path=='/api/master_delete': master_delete(obj['entity'],obj['id']); return self.send_json({'ok':True})
             return self.send_json({'error':'Not found'},404)
-        except Exception as e: return self.send_json({'error':str(e)},500)
+        except Exception as e:
+            traceback.print_exc()
+            return self.send_json({'error':str(e)},500)
 
 if __name__=='__main__':
     init_db(); host=os.environ.get('HOST','127.0.0.1'); port=int(os.environ.get('PORT','8501'))
