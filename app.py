@@ -151,10 +151,7 @@ class HybridRow(dict):
 
 def hybrid_row(cursor):
     columns = [col.name for col in cursor.description] if cursor.description else []
-    return lambda values: HybridRow(columns, values):
-    columns=[col.name for col in cursor.description]
     return lambda values: HybridRow(columns, values)
-
 
 class PostgresConnection:
     """Small compatibility layer so the existing queries work with PostgreSQL."""
