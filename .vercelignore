@@ -1,0 +1,7 @@
+production_control.db
+production_control.db-*
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example

@@ -1,0 +1,13 @@
+# Local and production data must not be committed to GitHub.
+production_control.db
+production_control.db-*
+
+# Credentials and deployment configuration
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Generated Python files
+__pycache__/
+*.py[cod]

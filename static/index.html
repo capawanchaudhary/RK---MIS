@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#123a35"><title>Production Control | RK Group</title><link rel="stylesheet" href="/styles.css"></head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#dashboard" aria-label="RK Group Production Control home"><span class="brand-mark">RK</span><span class="brand-copy"><b>RK GROUP</b><small>FOOD OPERATIONS</small></span></a>
+  <div class="topbar-center"><span class="topbar-dot"></span> Production control <span class="topbar-divider">/</span> India operations</div>
+  <div class="topbar-right"><span class="live-pill"><i></i> Planning workspace</span><span class="topbar-date" id="todayLabel">KITCHEN OPERATIONS</span></div>
+</header>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="side-caption">WORKSPACE</div>
+    <button class="nav active" data-page="dashboard"><span class="nav-icon">▦</span><span>Overview</span></button>
+    <button class="nav" data-page="plan"><span class="nav-icon">▤</span><span>Production plan</span><span class="nav-arrow">›</span></button>
+    <button class="nav" data-page="costing"><span class="nav-icon">₹</span><span>Meal costing</span></button>
+    <button class="nav" data-page="meals"><span class="nav-icon">＋</span><span>Meal demand</span></button>
+    <button class="nav" data-page="actual"><span class="nav-icon">◷</span><span>Consumption</span></button>
+    <div class="side-divider"></div>
+    <div class="side-caption">CONFIGURATION</div>
+    <button class="nav" data-page="masters"><span class="nav-icon">◇</span><span>Recipes & masters</span></button>
+    <button class="nav" data-page="about"><span class="nav-icon">ⓘ</span><span>How it works</span></button>
+    <div class="sidebar-footer"><div class="sidebar-footer-mark">IN</div><div><b>Pan-India kitchens</b><small>BOM-led production</small></div></div>
+  </aside>
+  <main class="main-content">
+    <section id="dashboard" class="page active">
+      <div class="page-heading"><div><div class="eyebrow">OPERATIONS OVERVIEW</div><h1>Good planning starts here.</h1><p>See the day’s meal demand, ingredient plan, and kitchen performance in one place.</p></div><div class="heading-note"><span class="heading-note-icon">✳</span><span><b>Plan with confidence</b><small>Every requirement follows your active BOM.</small></span></div></div>
+      <div class="toolbar filter-bar"><div class="filter-intro"><span class="filter-marker"></span><b>View operations</b></div><div class="filters"><label>Date<input id="dashDate" type="date"></label><label>Zone<select id="dashZone"></select></label><label>Kitchen<select id="dashKitchen"></select></label><button id="dashRefresh"><span>↻</span> Update view</button></div></div>
+      <div class="kpi-row" id="kpis"></div>
+      <div class="section-heading"><div><div class="eyebrow">MENU ECONOMICS</div><h2>Cost by service</h2></div><span class="section-helper">Equivalent meals = portions × meal type cost ÷ Lunch & Dinner cost. Total ideal cost / meal = total ideal value ÷ equivalent meals.</span></div>
+      <div class="group-grid" id="groupGrid"></div>
+      <div class="panel"><div class="panel-head"><div><h3>Finished menu cost</h3><p>Per-meal cost and total cost by menu item</p></div><span class="table-tag">FG COST</span></div><div id="fgTable"></div></div>
+      <div class="section-heading section-heading-spaced"><div><div class="eyebrow">INGREDIENT CONTROL</div><h2>Ideal vs actual consumption</h2></div><span class="section-helper">Actual = opening + purchases − closing.</span></div>
+      <div class="panel"><div class="panel-head"><div><h3>Material variance</h3><p>Spot usage differences across the selected kitchens</p></div><span class="table-tag table-tag-green">BOM CONTROL</span></div><div id="materialTable"></div></div>
+      <div class="panel alert-panel" id="alerts"></div>
+    </section>
+
+    <section id="plan" class="page">
+      <div class="page-heading"><div><div class="eyebrow">PLAN & PREPARE</div><h1>Production plan</h1><p>Turn meal demand into a kitchen-ready prep and ingredient plan.</p></div><div class="heading-note"><span class="heading-note-icon">↗</span><span><b>Demand → production</b><small>Calculated from effective recipes for the selected date.</small></span></div></div>
+      <div class="toolbar filter-bar"><div class="filter-intro"><span class="filter-marker"></span><b>Plan parameters</b></div><div class="filters"><label>Service date<input id="planDate" type="date"></label><label>Zone<select id="planZone"></select></label><label>Kitchen<select id="planKitchen"></select></label><button id="planRefresh"><span>↻</span> Build plan</button></div></div>
+      <div class="kpi-row plan-kpis" id="planKpis"></div><div class="panel alert-panel" id="planAlerts"></div>
+      <div class="panel"><div class="panel-head"><div><h3>Meal group summary</h3><p>Planned meals and BOM material value by service group</p></div><span class="table-tag">SERVICE MIX</span></div><div id="planGroupTable"></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>Menu quantities</h3><p>Finished items required for the selected kitchens and service date</p></div><span class="table-tag">01 · DEMAND</span></div><div id="planFgTable"></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>Prep quantities</h3><p>Semi-finished components to prepare, consolidated by kitchen</p></div><span class="table-tag">02 · SFG PLAN</span></div><div id="planSfgTable"></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>Ingredient requirements</h3><p>Gross material quantities from direct menu recipes and shared SFG recipes, with actual use and variance</p></div><span class="table-tag table-tag-green">03 · MATERIALS</span></div><div id="planMaterialTable"></div></div>
+    </section>
+
+    <section id="costing" class="page">
+      <div class="page-heading"><div><div class="eyebrow">AUDITABLE RECIPE COST</div><h1>Breakfast cost per meal</h1><p>Trace each BOM ingredient from its base quantity through the full breakfast cost.</p></div></div>
+      <div class="toolbar filter-bar"><div class="filter-intro"><span class="filter-marker"></span><b>Costing parameters</b></div><div class="filters"><label>Kitchen<select id="costKitchen"></select></label><label>Service date<input id="costDate" type="date"></label><button id="costRefresh">Calculate breakfast</button></div></div>
+      <div class="panel alert-panel" id="costAlerts"></div><div class="kpi-row" id="costKpis"></div>
+      <div class="panel"><div class="panel-head"><div><h3>Cost by meal type and total</h3><p>Each service group is calculated from its separately entered meal demand. Equivalent meals = portions × meal type cost ÷ Lunch & Dinner cost.</p></div><span class="table-tag">MEAL COST</span></div><div id="costGroupTable"></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>SFG recipe calculation</h3><p>Scaled ingredients, converted rate units, ingredient value, and cost per output unit</p></div><span class="table-tag">SFG COST</span></div><div id="costSfgTable"></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>SFG quantity and value in breakfast</h3><p>FG meal demand × SFG quantity per FG, with units shown</p></div><span class="table-tag">FG ROLL-UP</span></div><div id="costFgTable"></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>Direct FG recipe ingredients</h3><p>Direct menu recipe rows, where configured</p></div><span class="table-tag">DIRECT RECIPE</span></div><div id="costDirectTable"></div></div>
+    </section>
+
+    <section id="meals" class="page">
+      <div class="page-heading"><div><div class="eyebrow">DEMAND ENTRY</div><h1>Meal demand</h1><p>Enter the planned meal quantities for each menu item and kitchen.</p></div></div>
+      <div class="toolbar filter-bar"><div class="filter-intro"><span class="filter-marker"></span><b>Kitchen demand</b></div><div class="filters"><label>Kitchen<select id="mealKitchen"></select></label><label>Service date<input id="mealDate" type="date"></label><button id="loadMeals" class="button-secondary">Load quantities</button><button id="saveMeals"><span>✓</span> Save demand</button></div></div>
+      <div id="mealSetupHelp" class="setup-help"></div>
+      <div class="panel"><div class="panel-head"><div><h3>Planned meals by menu</h3><p>Enter the meal count for each active FG/menu item</p></div><span class="table-tag">MEAL DEMAND</span></div><div id="mealTable"></div></div>
+    </section>
+
+    <section id="actual" class="page">
+      <div class="page-heading"><div><div class="eyebrow">STOCK & USAGE</div><h1>Consumption entry</h1><p>Record opening stock, purchases, and closing stock to calculate actual usage.</p></div></div>
+      <div class="toolbar filter-bar"><div class="filter-intro"><span class="filter-marker"></span><b>Daily stock movement</b></div><div class="filters"><label>Kitchen<select id="actualKitchen"></select></label><label>Service date<input id="actualDate" type="date"></label><button id="loadActual" class="button-secondary">Load stock</button><button id="saveActual"><span>✓</span> Save stock</button></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>Material movement</h3><p>Opening defaults to the previous day’s closing stock where available</p></div><span class="table-tag table-tag-green">DAILY USAGE</span></div><div id="actualTable"></div></div>
+    </section>
+
+    <section id="masters" class="page">
+      <div class="page-heading"><div><div class="eyebrow">BACK OFFICE</div><h1>Recipes & masters</h1><p>Maintain kitchens, menus, recipe structure, rates, and direct expenses.</p></div></div>
+      <div class="master-tabs" id="masterTabs"></div><div class="panel"><div id="masterForm"></div></div><div class="panel"><div class="panel-head"><div><h3>Current records</h3><p>Active configuration used by the production plan and costing</p></div><span class="table-tag">MASTER DATA</span></div><div id="masterTable"></div></div>
+    </section>
+
+    <section id="about" class="page">
+      <div class="page-heading"><div><div class="eyebrow">QUICK GUIDE</div><h1>How production planning works</h1><p>A simple path from kitchen demand to ingredient control.</p></div></div>
+      <div class="panel prose"><div class="guide-flow"><div><small>01 · DEMAND</small><b>Meal plan</b><span>Meals by menu and kitchen</span></div><i>→</i><div><small>02 · RECIPE</small><b>Menu BOM</b><span>Portion basis and ingredients</span></div><i>→</i><div><small>03 · PREP</small><b>Shared SFGs</b><span>Prep quantities to produce</span></div><i>→</i><div><small>04 · CONTROL</small><b>Actual usage</b><span>Compare ideal with actual</span></div></div><p><b>Production plan:</b> saved meal quantities are exploded through effective menu-to-material recipes and, where used, FG-to-SFG and SFG-to-material BOMs.</p><p><b>Recipe requirement:</b> menu demand ÷ recipe portions × ingredient quantity. Shared SFG requirement: menu demand × SFG quantity per FG.</p><p><b>Actual material:</b> opening stock + purchases − closing stock.</p><p><b>Cost per meal:</b> rolled-up recipe cost plus configured direct expenses for the service group.</p><p class="guide-note">Missing recipe links appear as alerts in the plan. Confirm each recipe’s portion basis, ingredient quantity, and unit before using the plan for purchasing or production.</p></div>
+    </section>
+    <footer class="main-footer"><span>RK GROUP <i>•</i> PRODUCTION CONTROL</span><span>Recipe-led planning for distributed kitchens</span></footer>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div><script src="/app.js"></script></body></html>
